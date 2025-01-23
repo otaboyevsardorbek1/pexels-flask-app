@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Pexels Image Search API">
+    <title>Pexels Search - 3x5 Gallery</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+
+        /* Navbar styling */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #333;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .navbar h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .navbar a {
+            text-decoration: none;
+            color: white;
+            margin-left: 15px;
+            font-size: 16px;
+        }
+
+        .navbar img {
+            height: 40px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Search form styling */
+        .search-form {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .search-form input {
+            width: 300px;
+            padding: 10px;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+        .search-form button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        /* Checkbox group styling */
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        .checkbox-group label {
+            margin-right: 15px;
+            font-size: 14px;
+        }
+
+        /* Gallery grid styling */
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .gallery div {
+            text-align: center;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+        }
+
+        .gallery img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        /* Pagination styling */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            padding: 10px 15px;
+            margin: 0 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        /* Loading spinner styling */
+        .spinner {
+            display: none;
+            margin: 20px auto;
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #333;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <div class="navbar">
+        <h1>Pexels Search</h1>
+        <div>
+            <a href="https://t.me/developer_profile" target="_blank">Developer</a>
+            <img src="https://via.placeholder.com/100x40" alt="Logo">
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Search Form -->
+        <form class="search-form" id="searchForm">
+            <input type="text" id="query" placeholder="Search for images..." required>
+            <button type="submit">Search</button>
+        </form>
+
+        <!-- Checkboxes -->
+        <div class="checkbox-group">
+            <label><input type="checkbox" id="alt" checked> Show Alt</label>
+            <label><input type="checkbox" id="avg_color"> Show Avg Color</label>
+            <label><input type="checkbox" id="height"> Show Height</label>
+            <label><input type="checkbox" id="photographer"> Show Photographer</label>
+            <label><input type="checkbox" id="photographer_url"> Show Photographer URL</label>
+            <label><input type="checkbox" id="landscape" checked> Landscape</label>
+            <label><input type="checkbox" id="medium" checked> Medium</label>
+            <label><input type="checkbox" id="original"> Original</label>
+        </div>
+
+        <!-- Spinner -->
+        <div class="spinner" id="spinner"></div>
+
+        <!-- Gallery -->
+        <div class="gallery" id="gallery"></div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination">
+            <button id="prevPage" disabled>Previous</button>
+            <button id="nextPage" disabled>Next</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        const gallery = document.getElementById('gallery');
+        const searchForm = document.getElementById('searchForm');
+        const queryInput = document.getElementById('query');
+        const prevPageButton = document.getElementById('prevPage');
+        const nextPageButton = document.getElementById('nextPage');
+        const spinner = document.getElementById('spinner');
+        const checkboxes = document.querySelectorAll('.checkbox-group input');
+
+        let currentPage = 1;
+        let perPage = 15; // 3x5 grid uchun 15 ta rasm kerak
+        let currentQuery = '';
+
+        function toggleSpinner(visible) {
+            spinner.style.display = visible ? 'block' : 'none';
+        }
+
+        // Rasmlarni to'ldirish (agar soni 15 ta bo'lmasa, 0 qiymat bilan to'ldiriladi)
+        function fillImages(images) {
+            while (images.length < perPage) {
+                images.push({
+                    src: { medium: 'https://via.placeholder.com/300x300?text=Placeholder' },
+                    alt: 'No Image',
+                    avg_color: 'N/A',
+                    height: 0,
+                    photographer: 'Unknown',
+                    photographer_url: '#',
+                });
+            }
+            return images;
+        }
+
+        // Rasmlarni chiqarish
+        function displayImages(images) {
+            gallery.innerHTML = '';
+            images.forEach(image => {
+                const div = document.createElement('div');
+                const imgElement = document.createElement('img');
+                imgElement.src = image.src.medium;
+                imgElement.alt = image.alt;
+
+                const linkElement = document.createElement('a');
+                linkElement.href = image.url || '#';
+                linkElement.target = '_blank';
+                linkElement.appendChild(imgElement);
+                div.appendChild(linkElement);
+
+                // Checkboxlarga mos ravishda boshqa ma'lumotlarni ko'rsatish
+                if (document.getElementById('alt').checked) {
+                    const altText = document.createElement('p');
+                    altText.textContent = `Alt: ${image.alt || 'No Alt'}`;
+                    div.appendChild(altText);
+                }
+
+                if (document.getElementById('avg_color').checked) {
+                    const avgColor = document.createElement('p');
+                    avgColor.textContent = `Avg Color: ${image.avg_color}`;
+                    div.appendChild(avgColor);
+                }
+
+                if (document.getElementById('height').checked) {
+                    const height = document.createElement('p');
+                    height.textContent = `Height: ${image.height}`;
+                    div.appendChild(height);
+                }
+
+                if (document.getElementById('photographer').checked) {
+                    const photographer = document.createElement('p');
+                    photographer.textContent = `Photographer: ${image.photographer}`;
+                    div.appendChild(photographer);
+                }
+
+                if (document.getElementById('photographer_url').checked) {
+                    const photographerLink = document.createElement('a');
+                    photographerLink.href = image.photographer_url || '#';
+                    photographerLink.target = '_blank';
+                    photographerLink.textContent = 'Photographer Profile';
+                    div.appendChild(photographerLink);
+                }
+
+                gallery.appendChild(div);
+            });
+        }
+
+        // API orqali qidiruv
+        async function searchImages(query, page) {
+            toggleSpinner(true);
+            const response = await fetch(`/api/v1/search?query=${query}&page=${page}&per_page=${perPage}`);
+            toggleSpinner(false);
+
+            if (response.ok) {
+                const data = await response.json();
+                const filledImages = fillImages(data.photos);
+                displayImages(filledImages);
+
+                prevPageButton.disabled = page <= 1;
+                nextPageButton.disabled = !data.next_page; // API'dan kelgan next_page qiymati tekshiriladi
+            } else {
+                gallery.innerHTML = '<p>Error fetching data. Please try again later.</p>';
+            }
+        }
+
+        // Qidiruvni boshlash
+        searchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            currentQuery = queryInput.value;
+            currentPage = 1;
+            searchImages(currentQuery, currentPage);
+        });
+
+        // Oldingi sahifaga o'tish
+        prevPageButton.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                searchImages(currentQuery, currentPage);
+            }
+        });
+
+        // Keyingi sahifaga o'tish
+        nextPageButton.addEventListener('click', () => {
+            currentPage++;
+            searchImages(currentQuery, currentPage);
+        });
+
+        // Chekbox o'zgarishini kuzatish
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                if (currentQuery) {
+                    searchImages(currentQuery, currentPage);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
